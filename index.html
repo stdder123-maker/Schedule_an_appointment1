@@ -1,58 +1,150 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<meta charset="UTF-8">
-<title>นัดของฉัน</title>
-<style>
-body {
-  font-family: Arial;
-  background: #f4f6f8;
-  padding: 20px;
-}
-.card {
-  background: white;
-  padding: 15px;
-  margin: 10px 0;
-  border-radius: 10px;
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>นัดของฉัน</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .box {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    }
+    h2 {
+      margin: 0 0 12px;
+    }
+    .status {
+      color: #555;
+      margin-bottom: 12px;
+    }
+    .loading {
+      color: #0a7;
+      font-weight: bold;
+    }
+    .error {
+      color: #c62828;
+      font-weight: bold;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .userbox {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .muted {
+      color: #666;
+    }
+  </style>
 </head>
-
 <body>
+  <div class="wrap">
+    <div class="box">
+      <h2>📅 นัดของคุณ</h2>
 
-<h2>📅 นัดของคุณ</h2>
+      <div id="userInfo" class="userbox" style="display:none;"></div>
+      <div id="status" class="status">กำลังตรวจสอบผู้ใช้...</div>
+      <div id="result"></div>
+    </div>
+  </div>
 
-<input id="userId" placeholder="เช่น นาย สมศักดิ์">
-<button onclick="loadData()">ค้นหา</button>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    const LIFF_ID = "2009817011-TUwT76ww";
+    const API_URL = "https://script.google.com/macros/s/AKfycbzBptD94TabwI898Am9Dod30NTsZa0f6L3SGujYt9E2najZ471YH5vSnkRnUWY-_dLS/exec";
 
-<div id="result"></div>
+    async function loadAppointments(userId) {
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
 
-<script>
-const API = "https://script.google.com/macros/s/AKfycbzBptD94TabwI898Am9Dod30NTsZa0f6L3SGujYt9E2najZ471YH5vSnkRnUWY-_dLS/exec";
+      statusEl.textContent = "กำลังโหลดข้อมูลนัด...";
+      statusEl.className = "status loading";
+      resultEl.innerHTML = "";
 
-function loadData() {
-  let user = document.getElementById("userId").value;
+      try {
+        const res = await fetch(API_URL + "?userId=" + encodeURIComponent(userId));
+        const data = await res.json();
 
-  fetch(API + "?userId=" + encodeURIComponent(user))
-    .then(res => res.json())
-    .then(data => {
-      let html = "";
+        if (data.message) {
+          statusEl.textContent = data.message;
+          statusEl.className = "status muted";
+          return;
+        }
 
-      if (data.message) {
-        html = data.message;
-      } else {
-        data.forEach(d => {
-          html += `<div class="card">
-            วันที่: ${d.date}<br>
-            รายการ: ${d.job}
-          </div>`;
-        });
+        if (!Array.isArray(data) || data.length === 0) {
+          statusEl.textContent = "ไม่พบข้อมูลนัด";
+          statusEl.className = "status muted";
+          return;
+        }
+
+        statusEl.textContent = "พบข้อมูลนัด";
+        statusEl.className = "status muted";
+
+        resultEl.innerHTML = data.map(item => `
+          <div class="card">
+            <div><strong>วันที่:</strong> ${item.date}</div>
+            <div><strong>รายการ:</strong> ${item.job}</div>
+          </div>
+        `).join("");
+      } catch (err) {
+        statusEl.textContent = "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+        statusEl.className = "status error";
       }
+    }
 
-      document.getElementById("result").innerHTML = html;
-    });
-}
-</script>
+    async function main() {
+      const statusEl = document.getElementById("status");
+      const userInfoEl = document.getElementById("userInfo");
 
+      try {
+        await liff.init({
+          liffId: LIFF_ID,
+          withLoginOnExternalBrowser: true
+        });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        const userId = profile.userId;
+
+        userInfoEl.style.display = "block";
+        userInfoEl.innerHTML = `
+          <div><strong>ชื่อ LINE:</strong> ${profile.displayName}</div>
+          <div class="muted"><strong>userId:</strong> ${userId}</div>
+        `;
+
+        statusEl.textContent = "เข้าสู่ระบบแล้ว";
+        statusEl.className = "status muted";
+
+        await loadAppointments(userId);
+      } catch (err) {
+        statusEl.textContent = "เปิด LIFF ไม่สำเร็จ";
+        statusEl.className = "status error";
+      }
+    }
+
+    main();
+  </script>
 </body>
 </html>
