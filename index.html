@@ -5,116 +5,241 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>นัดของฉัน</title>
   <style>
+    * { box-sizing: border-box; }
+
     body {
+      margin: 0;
       font-family: Arial, sans-serif;
       background: #f4f6f8;
-      margin: 0;
+      color: #222;
       padding: 20px;
     }
-    .wrap {
+
+    .container {
       max-width: 760px;
       margin: 0 auto;
     }
-    .box {
-      background: #ffffff;
-      border-radius: 14px;
-      padding: 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.08);
-    }
-    h2 {
-      margin: 0 0 12px;
-    }
-    .status {
-      color: #555;
-      margin-bottom: 12px;
-    }
-    .loading {
-      color: #0a7;
-      font-weight: bold;
-    }
-    .error {
-      color: #c62828;
-      font-weight: bold;
-    }
+
     .card {
       background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
-      padding: 14px;
-      margin-top: 12px;
+      border-radius: 14px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      padding: 20px;
+      margin-bottom: 16px;
     }
-    .userbox {
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 16px;
+    }
+
+    .status {
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      background: #eef3f7;
+    }
+
+    .status.loading {
+      background: #e8f5e9;
+      color: #1b5e20;
+    }
+
+    .status.error {
+      background: #ffebee;
+      color: #b71c1c;
+    }
+
+    .status.info {
+      background: #e3f2fd;
+      color: #0d47a1;
+    }
+
+    .profile-box {
       background: #f9fafb;
       border: 1px solid #e5e7eb;
       border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 14px;
+      padding: 14px;
+      margin-bottom: 16px;
     }
-    .muted {
-      color: #666;
+
+    .profile-row {
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+
+    .appointment-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 12px;
+      background: #fff;
+    }
+
+    .appointment-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    .appointment-row {
+      margin: 6px 0;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .footer-note {
+      font-size: 13px;
+      color: #777;
+      margin-top: 12px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      background: #06c755;
+      color: white;
+      font-size: 14px;
+    }
+
+    .btn:hover {
+      opacity: 0.92;
+    }
+
+    .top-actions {
+      margin-top: 12px;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      .card { padding: 16px; }
+      h1 { font-size: 24px; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="box">
-      <h2>📅 นัดของคุณ</h2>
+  <div class="container">
+    <div class="card">
+      <h1>📅 นัดของฉัน</h1>
+      <div class="subtitle">ระบบจะแสดงนัดของผู้ใช้ LINE คนที่เปิดหน้านี้อัตโนมัติ</div>
 
-      <div id="userInfo" class="userbox" style="display:none;"></div>
-      <div id="status" class="status">กำลังตรวจสอบผู้ใช้...</div>
+      <div id="status" class="status loading">กำลังเริ่มต้นระบบ...</div>
+
+      <div id="profileBox" class="profile-box hidden">
+        <div class="profile-row"><strong>ชื่อ LINE:</strong> <span id="displayName">-</span></div>
+        <div class="profile-row"><strong>ชื่อในระบบ:</strong> <span id="systemName">-</span></div>
+      </div>
+
       <div id="result"></div>
+
+      <div class="top-actions">
+        <button class="btn" onclick="reloadAppointments()">โหลดข้อมูลใหม่</button>
+      </div>
+
+      <div class="footer-note">
+        ถ้าไม่พบข้อมูลนัด ให้ตรวจสอบว่าใน Google Sheet มี userId ของผู้ใช้นี้อยู่ในคอลัมน์ A แล้ว
+      </div>
     </div>
   </div>
 
-  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
     const LIFF_ID = "2009817011-TUwT76ww";
     const API_URL = "https://script.google.com/macros/s/AKfycbzBptD94TabwI898Am9Dod30NTsZa0f6L3SGujYt9E2najZ471YH5vSnkRnUWY-_dLS/exec";
 
-    async function loadAppointments(userId) {
+    let currentUserId = "";
+    let currentDisplayName = "";
+
+    function setStatus(message, type = "info") {
       const statusEl = document.getElementById("status");
+      statusEl.textContent = message;
+      statusEl.className = "status " + type;
+    }
+
+    function showProfile(displayName, systemName) {
+      document.getElementById("profileBox").classList.remove("hidden");
+      document.getElementById("displayName").textContent = displayName || "-";
+      document.getElementById("systemName").textContent = systemName || "-";
+    }
+
+    function renderAppointments(items) {
       const resultEl = document.getElementById("result");
 
-      statusEl.textContent = "กำลังโหลดข้อมูลนัด...";
-      statusEl.className = "status loading";
-      resultEl.innerHTML = "";
+      if (!Array.isArray(items) || items.length === 0) {
+        resultEl.innerHTML = `
+          <div class="appointment-item">
+            <div class="appointment-title">ไม่พบข้อมูล</div>
+            <div class="appointment-row">ไม่มีรายการนัด</div>
+          </div>
+        `;
+        return;
+      }
+
+      resultEl.innerHTML = items.map((item, index) => `
+        <div class="appointment-item">
+          <div class="appointment-title">นัดหมายรายการที่ ${index + 1}</div>
+          <div class="appointment-row"><strong>วันที่:</strong> ${item.date || "-"}</div>
+          <div class="appointment-row"><strong>รายการ:</strong> ${item.job || "-"}</div>
+        </div>
+      `).join("");
+    }
+
+    async function fetchAppointments(userId) {
+      setStatus("กำลังโหลดข้อมูลนัด...", "loading");
 
       try {
-        const res = await fetch(API_URL + "?userId=" + encodeURIComponent(userId));
-        const data = await res.json();
+        const response = await fetch(API_URL + "?userId=" + encodeURIComponent(userId));
+        const data = await response.json();
+
+        if (data.error) {
+          setStatus(data.message || "เกิดข้อผิดพลาดจากระบบหลังบ้าน", "error");
+          document.getElementById("result").innerHTML = "";
+          return;
+        }
 
         if (data.message) {
-          statusEl.textContent = data.message;
-          statusEl.className = "status muted";
+          setStatus(data.message, "info");
+          document.getElementById("result").innerHTML = `
+            <div class="appointment-item">
+              <div class="appointment-title">ไม่พบข้อมูล</div>
+              <div class="appointment-row">${data.message}</div>
+            </div>
+          `;
           return;
         }
 
-        if (!Array.isArray(data) || data.length === 0) {
-          statusEl.textContent = "ไม่พบข้อมูลนัด";
-          statusEl.className = "status muted";
-          return;
-        }
+        showProfile(currentDisplayName, data.name || "-");
+        renderAppointments(data.appointments || []);
+        setStatus("โหลดข้อมูลนัดสำเร็จ", "info");
 
-        statusEl.textContent = "พบข้อมูลนัด";
-        statusEl.className = "status muted";
-
-        resultEl.innerHTML = data.map(item => `
-          <div class="card">
-            <div><strong>วันที่:</strong> ${item.date}</div>
-            <div><strong>รายการ:</strong> ${item.job}</div>
-          </div>
-        `).join("");
-      } catch (err) {
-        statusEl.textContent = "เกิดข้อผิดพลาดในการโหลดข้อมูล";
-        statusEl.className = "status error";
+      } catch (error) {
+        setStatus("ไม่สามารถเชื่อมต่อข้อมูลนัดได้", "error");
+        document.getElementById("result").innerHTML = "";
+        console.error(error);
       }
     }
 
-    async function main() {
-      const statusEl = document.getElementById("status");
-      const userInfoEl = document.getElementById("userInfo");
+    async function reloadAppointments() {
+      if (!currentUserId) {
+        setStatus("ยังไม่พบ LINE userId", "error");
+        return;
+      }
+      await fetchAppointments(currentUserId);
+    }
 
+    async function main() {
       try {
+        setStatus("กำลังเชื่อมต่อ LINE...", "loading");
+
         await liff.init({
           liffId: LIFF_ID,
           withLoginOnExternalBrowser: true
@@ -126,21 +251,16 @@
         }
 
         const profile = await liff.getProfile();
-        const userId = profile.userId;
+        currentUserId = profile.userId;
+        currentDisplayName = profile.displayName || "";
 
-        userInfoEl.style.display = "block";
-        userInfoEl.innerHTML = `
-          <div><strong>ชื่อ LINE:</strong> ${profile.displayName}</div>
-          <div class="muted"><strong>userId:</strong> ${userId}</div>
-        `;
+        setStatus("เข้าสู่ระบบ LINE สำเร็จ", "info");
 
-        statusEl.textContent = "เข้าสู่ระบบแล้ว";
-        statusEl.className = "status muted";
+        await fetchAppointments(currentUserId);
 
-        await loadAppointments(userId);
-      } catch (err) {
-        statusEl.textContent = "เปิด LIFF ไม่สำเร็จ";
-        statusEl.className = "status error";
+      } catch (error) {
+        console.error(error);
+        setStatus("เปิด LIFF ไม่สำเร็จ", "error");
       }
     }
 
