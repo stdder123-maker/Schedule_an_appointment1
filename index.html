@@ -130,7 +130,7 @@
   <div class="container">
     <div class="card">
       <h1>📅 นัดของฉัน</h1>
-      <div class="subtitle">ระบบจะแสดงนัดของผู้ใช้ LINE คนที่เปิดหน้านี้อัตโนมัติ</div>
+      <div class="subtitle">ระบบจะตรวจสอบและลงทะเบียนผู้ใช้ให้อัตโนมัติในครั้งแรก</div>
 
       <div id="status" class="status loading">กำลังเริ่มต้นระบบ...</div>
 
@@ -146,7 +146,7 @@
       </div>
 
       <div class="footer-note">
-        ถ้าไม่พบข้อมูลนัด ให้ตรวจสอบว่าใน Google Sheet มี userId ของผู้ใช้นี้อยู่ในคอลัมน์ A แล้ว
+        ถ้ายังไม่มีนัด ระบบจะลงทะเบียนให้ก่อน และเจ้าหน้าที่สามารถกลับไปเพิ่มนัดใน Google Sheet ภายหลังได้
       </div>
     </div>
   </div>
@@ -177,8 +177,8 @@
       if (!Array.isArray(items) || items.length === 0) {
         resultEl.innerHTML = `
           <div class="appointment-item">
-            <div class="appointment-title">ไม่พบข้อมูล</div>
-            <div class="appointment-row">ไม่มีรายการนัด</div>
+            <div class="appointment-title">ยังไม่มีนัดหมาย</div>
+            <div class="appointment-row">กรุณารอเจ้าหน้าที่เพิ่มข้อมูลนัด</div>
           </div>
         `;
         return;
@@ -193,11 +193,15 @@
       `).join("");
     }
 
-    async function fetchAppointments(userId) {
+    async function fetchAppointments(userId, displayName) {
       setStatus("กำลังโหลดข้อมูลนัด...", "loading");
 
       try {
-        const response = await fetch(API_URL + "?userId=" + encodeURIComponent(userId));
+        const url = API_URL
+          + "?userId=" + encodeURIComponent(userId)
+          + "&displayName=" + encodeURIComponent(displayName || "");
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (data.error) {
@@ -206,18 +210,30 @@
           return;
         }
 
-        if (data.message) {
+        showProfile(currentDisplayName, data.name || currentDisplayName || "-");
+
+        if (data.registered) {
+          setStatus(data.message || "ลงทะเบียนสำเร็จ", "info");
+          document.getElementById("result").innerHTML = `
+            <div class="appointment-item">
+              <div class="appointment-title">ลงทะเบียนครั้งแรกสำเร็จ</div>
+              <div class="appointment-row">${data.message || "ระบบได้บันทึกข้อมูลผู้ใช้เรียบร้อยแล้ว"}</div>
+            </div>
+          `;
+          return;
+        }
+
+        if (data.message && !data.appointments) {
           setStatus(data.message, "info");
           document.getElementById("result").innerHTML = `
             <div class="appointment-item">
-              <div class="appointment-title">ไม่พบข้อมูล</div>
+              <div class="appointment-title">ยังไม่มีนัดหมาย</div>
               <div class="appointment-row">${data.message}</div>
             </div>
           `;
           return;
         }
 
-        showProfile(currentDisplayName, data.name || "-");
         renderAppointments(data.appointments || []);
         setStatus("โหลดข้อมูลนัดสำเร็จ", "info");
 
@@ -233,7 +249,7 @@
         setStatus("ยังไม่พบ LINE userId", "error");
         return;
       }
-      await fetchAppointments(currentUserId);
+      await fetchAppointments(currentUserId, currentDisplayName);
     }
 
     async function main() {
@@ -256,7 +272,7 @@
 
         setStatus("เข้าสู่ระบบ LINE สำเร็จ", "info");
 
-        await fetchAppointments(currentUserId);
+        await fetchAppointments(currentUserId, currentDisplayName);
 
       } catch (error) {
         console.error(error);
