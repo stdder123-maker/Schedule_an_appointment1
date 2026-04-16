@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>นัดของฉัน</title>
+<style>
+body {
+  font-family: Arial;
+  background: #f4f6f8;
+  padding: 20px;
+}
+.card {
+  background: white;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>📅 นัดของคุณ</h2>
+
+<input id="userId" placeholder="เช่น นาย สมศักดิ์">
+<button onclick="loadData()">ค้นหา</button>
+
+<div id="result"></div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbzBptD94TabwI898Am9Dod30NTsZa0f6L3SGujYt9E2najZ471YH5vSnkRnUWY-_dLS/exec";
+
+function loadData() {
+  let user = document.getElementById("userId").value;
+
+  fetch(API + "?userId=" + encodeURIComponent(user))
+    .then(res => res.json())
+    .then(data => {
+      let html = "";
+
+      if (data.message) {
+        html = data.message;
+      } else {
+        data.forEach(d => {
+          html += `<div class="card">
+            วันที่: ${d.date}<br>
+            รายการ: ${d.job}
+          </div>`;
+        });
+      }
+
+      document.getElementById("result").innerHTML = html;
+    });
+}
+</script>
+
+</body>
+</html>
