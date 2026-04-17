@@ -43,6 +43,7 @@
       border-radius: 10px;
       margin-bottom: 16px;
       background: #eef3f7;
+      word-break: break-word;
     }
 
     .status.loading {
@@ -109,6 +110,7 @@
       background: #06c755;
       color: white;
       font-size: 14px;
+      margin-right: 8px;
     }
 
     .btn:hover {
@@ -119,10 +121,23 @@
       margin-top: 12px;
     }
 
+    .debug-box {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #fafafa;
+      border: 1px dashed #ccc;
+      font-size: 12px;
+      color: #555;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     @media (max-width: 640px) {
       body { padding: 12px; }
       .card { padding: 16px; }
       h1 { font-size: 24px; }
+      .btn { width: 100%; margin-bottom: 8px; }
     }
   </style>
 </head>
@@ -148,12 +163,17 @@
       <div class="footer-note">
         ถ้ายังไม่มีนัด ระบบจะลงทะเบียนให้ก่อน และเจ้าหน้าที่สามารถกลับไปเพิ่มนัดใน Google Sheet ภายหลังได้
       </div>
+
+      <div id="debugBox" class="debug-box hidden"></div>
     </div>
   </div>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
-    const LIFF_ID = "2009817011-TUw17Eww";
+    // แก้ให้ตรงกับ LIFF ของคุณ
+    const LIFF_ID = "2009817011-TUwT76ww";
+
+    // Apps Script URL ล่าสุดของคุณ
     const API_URL = "https://script.google.com/macros/s/AKfycbyZTI31RWF9dTWUHorUb3Opy8cLPu5NylenKr_uVe7gMiD4MxtL1ICd5WUqlJc00EdR/exec";
 
     let currentUserId = "";
@@ -169,6 +189,21 @@
       document.getElementById("profileBox").classList.remove("hidden");
       document.getElementById("displayName").textContent = displayName || "-";
       document.getElementById("systemName").textContent = systemName || "-";
+    }
+
+    function showDebug(data) {
+      const debugEl = document.getElementById("debugBox");
+      debugEl.classList.remove("hidden");
+      debugEl.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
 
     function renderAppointments(items) {
@@ -187,8 +222,9 @@
       resultEl.innerHTML = items.map((item, index) => `
         <div class="appointment-item">
           <div class="appointment-title">นัดหมายรายการที่ ${index + 1}</div>
-          <div class="appointment-row"><strong>วันที่:</strong> ${item.date || "-"}</div>
-          <div class="appointment-row"><strong>รายการ:</strong> ${item.job || "-"}</div>
+          <div class="appointment-row"><strong>วันที่:</strong> ${escapeHtml(item.date || "-")}</div>
+          <div class="appointment-row"><strong>รายการ:</strong> ${escapeHtml(item.job || "-")}</div>
+          <div class="appointment-row"><strong>สถานที่:</strong> ${escapeHtml(item.location || "-")}</div>
         </div>
       `).join("");
     }
@@ -204,6 +240,8 @@
         const response = await fetch(url);
         const data = await response.json();
 
+        showDebug(data);
+
         if (data.error) {
           setStatus(data.message || "เกิดข้อผิดพลาดจากระบบหลังบ้าน", "error");
           document.getElementById("result").innerHTML = "";
@@ -217,7 +255,7 @@
           document.getElementById("result").innerHTML = `
             <div class="appointment-item">
               <div class="appointment-title">ลงทะเบียนครั้งแรกสำเร็จ</div>
-              <div class="appointment-row">${data.message || "ระบบได้บันทึกข้อมูลผู้ใช้เรียบร้อยแล้ว"}</div>
+              <div class="appointment-row">${escapeHtml(data.message || "ระบบได้บันทึกข้อมูลผู้ใช้เรียบร้อยแล้ว")}</div>
             </div>
           `;
           return;
@@ -228,7 +266,7 @@
           document.getElementById("result").innerHTML = `
             <div class="appointment-item">
               <div class="appointment-title">ยังไม่มีนัดหมาย</div>
-              <div class="appointment-row">${data.message}</div>
+              <div class="appointment-row">${escapeHtml(data.message)}</div>
             </div>
           `;
           return;
@@ -238,9 +276,10 @@
         setStatus("โหลดข้อมูลนัดสำเร็จ", "info");
 
       } catch (error) {
-        setStatus("ไม่สามารถเชื่อมต่อข้อมูลนัดได้", "error");
-        document.getElementById("result").innerHTML = "";
         console.error(error);
+        showDebug(error.message || String(error));
+        setStatus("ไม่สามารถเชื่อมต่อข้อมูลนัดได้: " + (error.message || error), "error");
+        document.getElementById("result").innerHTML = "";
       }
     }
 
@@ -261,6 +300,12 @@
           withLoginOnExternalBrowser: true
         });
 
+        showDebug({
+          step: "liff.init success",
+          isLoggedIn: liff.isLoggedIn(),
+          isInClient: liff.isInClient()
+        });
+
         if (!liff.isLoggedIn()) {
           liff.login();
           return;
@@ -270,13 +315,20 @@
         currentUserId = profile.userId;
         currentDisplayName = profile.displayName || "";
 
+        showDebug({
+          step: "profile loaded",
+          userId: currentUserId,
+          displayName: currentDisplayName
+        });
+
         setStatus("เข้าสู่ระบบ LINE สำเร็จ", "info");
 
         await fetchAppointments(currentUserId, currentDisplayName);
 
       } catch (error) {
         console.error(error);
-        setStatus("เปิด LIFF ไม่สำเร็จ", "error");
+        showDebug(error.message || String(error));
+        setStatus("เปิด LIFF ไม่สำเร็จ: " + (error.message || error), "error");
       }
     }
 
