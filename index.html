@@ -121,18 +121,6 @@
       margin-top: 12px;
     }
 
-    .debug-box {
-      margin-top: 12px;
-      padding: 10px;
-      border-radius: 10px;
-      background: #fafafa;
-      border: 1px dashed #ccc;
-      font-size: 12px;
-      color: #555;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
     @media (max-width: 640px) {
       body { padding: 12px; }
       .card { padding: 16px; }
@@ -163,18 +151,13 @@
       <div class="footer-note">
         ถ้ายังไม่มีนัด ระบบจะลงทะเบียนให้ก่อน และเจ้าหน้าที่สามารถกลับไปเพิ่มนัดใน Google Sheet ภายหลังได้
       </div>
-
-      <div id="debugBox" class="debug-box hidden"></div>
     </div>
   </div>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
-    // แก้ให้ตรงกับ LIFF ของคุณ
-    const LIFF_ID = "2009817011-TUw17Eww";
-
-    // Apps Script URL ล่าสุดของคุณ
-    const API_URL = "https://script.google.com/macros/s/AKfycbxWpUIQwMFQKh9Cu7zZWlaYO77SOjoBFKiqpcJffV-DUqXhUn1aMk7WEIl3xDBPoLpa/exec";
+    const LIFF_ID = "2009817011-TUwT76ww";
+    const API_URL = "https://script.google.com/macros/s/AKfycbyZTI31RWF9dTWUHorUb3Opy8cLPu5NylenKr_uVe7gMiD4MxtL1ICd5WUqlJc00EdR/exec";
 
     let currentUserId = "";
     let currentDisplayName = "";
@@ -189,12 +172,6 @@
       document.getElementById("profileBox").classList.remove("hidden");
       document.getElementById("displayName").textContent = displayName || "-";
       document.getElementById("systemName").textContent = systemName || "-";
-    }
-
-    function showDebug(data) {
-      const debugEl = document.getElementById("debugBox");
-      debugEl.classList.remove("hidden");
-      debugEl.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
     }
 
     function escapeHtml(value) {
@@ -240,8 +217,6 @@
         const response = await fetch(url);
         const data = await response.json();
 
-        showDebug(data);
-
         if (data.error) {
           setStatus(data.message || "เกิดข้อผิดพลาดจากระบบหลังบ้าน", "error");
           document.getElementById("result").innerHTML = "";
@@ -277,7 +252,6 @@
 
       } catch (error) {
         console.error(error);
-        showDebug(error.message || String(error));
         setStatus("ไม่สามารถเชื่อมต่อข้อมูลนัดได้: " + (error.message || error), "error");
         document.getElementById("result").innerHTML = "";
       }
@@ -300,12 +274,6 @@
           withLoginOnExternalBrowser: true
         });
 
-        showDebug({
-          step: "liff.init success",
-          isLoggedIn: liff.isLoggedIn(),
-          isInClient: liff.isInClient()
-        });
-
         if (!liff.isLoggedIn()) {
           liff.login();
           return;
@@ -315,19 +283,12 @@
         currentUserId = profile.userId;
         currentDisplayName = profile.displayName || "";
 
-        showDebug({
-          step: "profile loaded",
-          userId: currentUserId,
-          displayName: currentDisplayName
-        });
-
         setStatus("เข้าสู่ระบบ LINE สำเร็จ", "info");
 
         await fetchAppointments(currentUserId, currentDisplayName);
 
       } catch (error) {
         console.error(error);
-        showDebug(error.message || String(error));
         setStatus("เปิด LIFF ไม่สำเร็จ: " + (error.message || error), "error");
       }
     }
